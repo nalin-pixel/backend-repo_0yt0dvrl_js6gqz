@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from bson import ObjectId
 
-app = FastAPI(title="SeedCodes API", version="1.0.0")
+app = FastAPI(title="SeedCodes API", version="1.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -98,6 +98,76 @@ def test_database():
     response["database_name"] = "✅ Set" if _os.getenv("DATABASE_NAME") else "❌ Not Set"
 
     return response
+
+
+# --- Seeding utilities ---
+SAMPLE_PROJECTS: List[Project] = [
+    Project(
+        title="Neon Path Tracer",
+        description="Real-time WebGL path tracer with denoising and emissive materials.",
+        tags=["webgl", "graphics", "shader"],
+        github_url="https://github.com/example/neon-tracer",
+        live_url="https://seedcodes.dev/demos/neon-tracer",
+        thumbnail="https://images.unsplash.com/photo-1551817958-20204d6ab8f8?q=80&w=1200&auto=format&fit=crop"
+    ),
+    Project(
+        title="Synthwave ChatGPT UI",
+        description="A stylized AI chat interface with streaming tokens and prompt presets.",
+        tags=["ai", "ui", "react"],
+        github_url="https://github.com/example/synthwave-chat",
+        live_url="https://seedcodes.dev/demos/synthwave-chat",
+        thumbnail="https://images.unsplash.com/photo-1518770660439-4636190af475?q=80&w=1200&auto=format&fit=crop"
+    ),
+    Project(
+        title="Robotic Arm Planner",
+        description="Inverse kinematics visualizer and motion planner with constraints.",
+        tags=["robotics", "ik", "python"],
+        github_url="https://github.com/example/arm-planner",
+        live_url="https://seedcodes.dev/demos/arm-planner",
+        thumbnail="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?q=80&w=1200&auto=format&fit=crop"
+    ),
+    Project(
+        title="Audio-Driven Particles",
+        description="FFT-reactive particle system with GPU instancing and post-processing.",
+        tags=["audio", "threejs", "gpu"],
+        github_url="https://github.com/example/audio-particles",
+        live_url="https://seedcodes.dev/demos/audio-particles",
+        thumbnail="https://images.unsplash.com/photo-1518655048521-f130df041f66?q=80&w=1200&auto=format&fit=crop"
+    ),
+]
+
+
+def _seed_if_empty() -> dict:
+    if db is None:
+        return {"seeded": False, "reason": "Database not configured"}
+    count = db["project"].count_documents({})
+    if count > 0:
+        return {"seeded": False, "reason": "Collection already has data", "count": count}
+    inserted = 0
+    for p in SAMPLE_PROJECTS:
+        try:
+            create_document("project", p)
+            inserted += 1
+        except Exception:
+            pass
+    return {"seeded": True, "inserted": inserted}
+
+
+@app.post("/api/seed")
+def manual_seed():
+    try:
+        return _seed_if_empty()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.on_event("startup")
+def startup_seed():
+    try:
+        _seed_if_empty()
+    except Exception:
+        # Ignore seeding errors during startup to not block the app
+        pass
 
 
 if __name__ == "__main__":
